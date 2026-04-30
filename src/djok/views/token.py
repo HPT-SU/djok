@@ -1,5 +1,6 @@
 import datetime
 
+from django.db import transaction
 from django.db.models import F
 from django.views.generic import DetailView
 
@@ -24,8 +25,7 @@ class TokenViewBase(DetailView):
         raise NotImplementedError
 
     def get(self, request, *args, **kwargs):
-        token: TokenBase
-        token = self.object = self.get_object()
+        token: TokenBase = self.get_object()
 
         confirm = kwargs[self.confirm_url_kwarg]
         confirm_check = getattr(token, self.confirm_field)
@@ -35,14 +35,19 @@ class TokenViewBase(DetailView):
 
         today = datetime.date.today()
 
-        if today > self.object.expire:
+        if today > token.expire:
             return self.fail(request, *args, **kwargs)
 
-        else:
-            if 0 < token.usage_limit <= token.current_usage:
+        # Атомарный check + increment под select_for_update. Без этого два
+        # параллельных запроса по одной magic-link ссылке оба проходили
+        # проверку (current_usage=0 < usage_limit=1) и оба увеличивали
+        # счётчик — magic-link использовался дважды.
+        with transaction.atomic():
+            locked = type(token).objects.select_for_update().get(pk=token.pk)
+            if 0 < locked.usage_limit <= locked.current_usage:
                 return self.fail(request, *args, **kwargs)
+            locked.current_usage = F('current_usage') + 1
+            locked.save(update_fields=['current_usage'])
+            self.object = locked
 
-            token.current_usage = F('current_usage') + 1
-            token.save(update_fields=['current_usage'])
-
-            return self.success(request, *args, **kwargs)
+        return self.success(request, *args, **kwargs)
