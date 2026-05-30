@@ -117,3 +117,30 @@ def vehicle_icon(name: str, css_class: str = 'icon', label: str = '') -> str:
         return ''
     sid = name if name.startswith('vehicle-') else f'vehicle-{name}'
     return _hpt_svg(sid, css_class=css_class, label=label or sid)
+
+
+_TYPE_FROM_CATEGORY = {
+    'M1': 'cil-car', 'M1G': 'cil-car',
+    'M2': 'cil-bus', 'M2C': 'cil-bus', 'M2G': 'cil-bus', 'M3': 'cil-bus',
+    'N1': 'cil-truck', 'N1G': 'cil-truck',
+    'N2': 'cil-truck', 'N2G': 'cil-truck',
+    'N3': 'cil-truck', 'N3G': 'cil-truck',
+    'O1': 'cil-trailer', 'O2': 'cil-trailer', 'O3': 'cil-trailer', 'O4': 'cil-trailer',
+    'L1': 'cil-car', 'L2': 'cil-car', 'L3': 'cil-car',
+    'L4': 'cil-car', 'L5': 'cil-car', 'L6': 'cil-car', 'L7': 'cil-car',
+}
+
+
+@register.simple_tag
+def vehicle_type_icon(category, css_class: str = 'icon', label: str = '') -> str:
+    """Обобщённая иконка типа ТС: легковой/автобус/грузовик/прицеп.
+
+    Без указания категории на самой иконке — только символ типа. Принимает
+    TsCategory или short_name. Для неизвестной/пустой категории — fallback
+    на cil-car (легковой).
+    """
+    if category is None:
+        return _hpt_svg('cil-car', css_class=css_class, label=label or 'ТС')
+    short = getattr(category, 'short_name', category) or ''
+    sid = _TYPE_FROM_CATEGORY.get(str(short).upper(), 'cil-car')
+    return _hpt_svg(sid, css_class=css_class, label=label or sid)
